@@ -1,0 +1,12 @@
+node_modules
+dist
+web/dist
+data
+*.sqlite
+*.sqlite-journal
+.env
+.env.local
+.DS_Store
+coverage
+.vscode
+.idea

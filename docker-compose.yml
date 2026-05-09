@@ -1,0 +1,19 @@
+services:
+  resend-rapper:
+    build: .
+    image: resend-rapper:local
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      HOST: 0.0.0.0
+      DATABASE_PATH: /data/resend_rapper.sqlite
+      MASTER_KEY: ${MASTER_KEY:-dev-master-key-change-me-0123456789abcdef0123456789abcdef}
+      SESSION_SECRET: ${SESSION_SECRET:-dev-session-secret-change-me-0123456789abcdef0123456789abcdef}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+    volumes:
+      - resend-rapper-data:/data
+    restart: unless-stopped
+
+volumes:
+  resend-rapper-data:
