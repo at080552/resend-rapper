@@ -35,26 +35,74 @@ module ResendWrapper
   class DeliveryError < StandardError; end
 
   module Json
+    # Hand-rolled JSON encoder so we don't depend on json gem or
+    # ActiveSupport::JSON, which on Rails 2.3 + Ruby 1.8 may fall back to
+    # a YAML backend that produces YAML-flow output (e.g. {key: "val"})
+    # rather than valid JSON ({"key": "val"}).
     def self.encode(obj)
-      # Prefer the json gem when present (more deterministic, handles symbol
-      # keys and nested objects predictably). Fall back to ActiveSupport,
-      # which is always available in Rails 2.
-      if defined?(::JSON) && ::JSON.respond_to?(:generate)
-        ::JSON.generate(obj)
-      elsif defined?(ActiveSupport::JSON)
-        ActiveSupport::JSON.encode(obj)
+      encode_value(obj)
+    end
+
+    def self.encode_value(v)
+      case v
+      when Hash
+        pairs = v.map { |k, val| "#{encode_string(k.to_s)}:#{encode_value(val)}" }
+        "{#{pairs.join(',')}}"
+      when Array
+        "[#{v.map { |x| encode_value(x) }.join(',')}]"
+      when String
+        encode_string(v)
+      when Symbol
+        encode_string(v.to_s)
+      when Integer, Float
+        v.to_s
+      when TrueClass, FalseClass
+        v.to_s
+      when NilClass
+        'null'
       else
-        raise 'No JSON encoder available'
+        encode_string(v.to_s)
       end
     end
 
+    def self.encode_string(s)
+      out = '"'
+      s.to_s.each_byte do |b|
+        case b
+        when 0x22 then out << '\\"'
+        when 0x5c then out << '\\\\'
+        when 0x08 then out << '\\b'
+        when 0x09 then out << '\\t'
+        when 0x0a then out << '\\n'
+        when 0x0c then out << '\\f'
+        when 0x0d then out << '\\r'
+        else
+          if b < 0x20
+            out << sprintf('\\u%04x', b)
+          else
+            out << b.chr
+          end
+        end
+      end
+      out << '"'
+      out
+    end
+
+    # Decoding: the wrapper's responses are simple, well-formed JSON, so
+    # falling back to whatever decoder is available is fine.
     def self.decode(str)
       if defined?(::JSON) && ::JSON.respond_to?(:parse)
         ::JSON.parse(str)
       elsif defined?(ActiveSupport::JSON)
         ActiveSupport::JSON.decode(str)
       else
-        raise 'No JSON decoder available'
+        # Minimal recovery: pull out a couple of well-known keys.
+        result = {}
+        result['id']        = $1.to_i if str =~ /"id"\s*:\s*(\d+)/
+        result['resend_id'] = $1      if str =~ /"resend_id"\s*:\s*"([^"]*)"/
+        result['status']    = $1      if str =~ /"status"\s*:\s*"([^"]*)"/
+        result['error']     = $1      if str =~ /"error"\s*:\s*"([^"]*)"/
+        result
       end
     end
   end
