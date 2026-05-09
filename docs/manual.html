@@ -356,7 +356,7 @@ cd web && npm run dev <span class="c"># Vite dev server (5173)</span></pre>
     <p><code class="inline">examples/rails2/resend_wrapper_mailer.rb</code> を <code class="inline">lib/</code> に配置し、initializer で有効化。</p>
 
 <pre><span class="c"># config/initializers/resend_wrapper.rb</span>
-require File.expand_path(<span class="s">'../../lib/resend_wrapper_mailer'</span>, __FILE__)
+require File.join(RAILS_ROOT, <span class="s">'lib'</span>, <span class="s">'resend_wrapper_mailer'</span>)
 
 ActionMailer::Base.delivery_method = <span class="k">:resend_wrapper</span>
 ActionMailer::Base.resend_wrapper_settings = {

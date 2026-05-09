@@ -117,9 +117,10 @@ Other endpoints:
 
 ```ruby
 # lib/resend_wrapper_mailer.rb  (copy from examples/rails2/)
-require 'resend_wrapper_mailer'
 
 # config/initializers/resend_wrapper.rb
+require File.join(RAILS_ROOT, 'lib', 'resend_wrapper_mailer')
+
 ActionMailer::Base.delivery_method = :resend_wrapper
 ActionMailer::Base.resend_wrapper_settings = {
   :endpoint => 'http://10.0.0.5:3000/api/v1/send',
