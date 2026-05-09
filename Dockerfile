@@ -33,7 +33,9 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/web/dist ./web/dist
 
 RUN mkdir -p /data
-VOLUME ["/data"]
+# Note: no VOLUME declaration here. Railway forbids it (use a Railway Volume
+# mounted at /data instead). For docker-compose use, the named volume in
+# docker-compose.yml mounts to /data so persistence still works.
 EXPOSE 3000
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
