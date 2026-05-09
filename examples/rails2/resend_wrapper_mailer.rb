@@ -88,22 +88,31 @@ module ResendWrapper
       out
     end
 
-    # Decoding: the wrapper's responses are simple, well-formed JSON, so
-    # falling back to whatever decoder is available is fine.
+    # Decode the wrapper's response, which is always simple ASCII JSON.
+    # Probe each backend with respond_to? because some old Rails 2.x
+    # define ActiveSupport::JSON as a module but not the .decode method.
     def self.decode(str)
       if defined?(::JSON) && ::JSON.respond_to?(:parse)
-        ::JSON.parse(str)
-      elsif defined?(ActiveSupport::JSON)
-        ActiveSupport::JSON.decode(str)
-      else
-        # Minimal recovery: pull out a couple of well-known keys.
-        result = {}
-        result['id']        = $1.to_i if str =~ /"id"\s*:\s*(\d+)/
-        result['resend_id'] = $1      if str =~ /"resend_id"\s*:\s*"([^"]*)"/
-        result['status']    = $1      if str =~ /"status"\s*:\s*"([^"]*)"/
-        result['error']     = $1      if str =~ /"error"\s*:\s*"([^"]*)"/
-        result
+        return ::JSON.parse(str)
       end
+      if defined?(ActiveSupport::JSON) && ActiveSupport::JSON.respond_to?(:decode)
+        return ActiveSupport::JSON.decode(str)
+      end
+      # YAML 1.1 is a superset of JSON for ASCII payloads, and YAML is in
+      # the Ruby 1.8 stdlib. This works fine for our wrapper's responses.
+      begin
+        require 'yaml' unless defined?(YAML)
+        parsed = YAML.load(str)
+        return parsed if parsed.is_a?(Hash)
+      rescue StandardError
+      end
+      # Last resort: pull the few keys we ever consume from a response.
+      result = {}
+      result['id']        = $1.to_i if str =~ /"id"\s*:\s*(\d+)/
+      result['resend_id'] = $1      if str =~ /"resend_id"\s*:\s*"([^"]*)"/
+      result['status']    = $1      if str =~ /"status"\s*:\s*"([^"]*)"/
+      result['error']     = $1      if str =~ /"error"\s*:\s*"([^"]*)"/
+      result
     end
   end
 
