@@ -54,8 +54,11 @@ module ResendWrapper
 
   class Mailer
     def initialize(settings)
-      @endpoint = settings[:endpoint] || raise(ArgumentError, ":endpoint is required")
-      @api_key  = settings[:api_key]  || raise(ArgumentError, ":api_key is required")
+      @endpoint      = settings[:endpoint]      || raise(ArgumentError, ":endpoint is required")
+      @api_key       = settings[:api_key]       || raise(ArgumentError, ":api_key is required")
+      @host_override = settings[:host_override] # for stunnel-bridge use
+      @open_timeout  = settings[:open_timeout]  || 10
+      @read_timeout  = settings[:read_timeout]  || 30
     end
 
     def deliver!(mail)
@@ -63,11 +66,13 @@ module ResendWrapper
       uri = URI.parse(@endpoint)
       req = Net::HTTP::Post.new(uri.request_uri)
       req["Content-Type"] = "application/json"
-      req["X-API-Key"] = @api_key
+      req["X-API-Key"]    = @api_key
+      req["Host"]         = @host_override if @host_override
       req.body = ResendWrapper::Json.encode(payload)
 
       http = Net::HTTP.new(uri.host, uri.port)
-      http.read_timeout = 30
+      http.open_timeout = @open_timeout
+      http.read_timeout = @read_timeout
       res = http.request(req)
 
       unless res.is_a?(Net::HTTPSuccess)
