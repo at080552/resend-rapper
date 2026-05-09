@@ -130,6 +130,29 @@ ActionMailer::Base.resend_wrapper_settings = {
 After that, every `ActionMailer` `deliver` call goes through Resend Rapper.
 See [`examples/rails2/`](examples/rails2/) for the full adapter.
 
+## Managing admin credentials
+
+**Initial admin** (one-shot, container or shell):
+
+```bash
+docker compose exec resend-rapper node dist/cli/createAdmin.js \
+  --username admin --password 'pick-a-strong-one'
+```
+
+**Reset password from CLI** (forgot password / lost-key recovery):
+
+```bash
+docker compose exec resend-rapper node dist/cli/createAdmin.js \
+  --username admin --password 'new-strong-password' --reset
+```
+
+The CLI is the same script — without `--reset` it refuses to overwrite an
+existing user; with `--reset` it updates the password and invalidates **all**
+active sessions for that user.
+
+**Change password / username from the admin UI**: sign in → **Account**.
+Successful password change signs you out of every device.
+
 ## Local development
 
 ```bash

@@ -1,3 +1,5 @@
+export const UNAUTH_EVENT = 'rr:unauthenticated';
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     credentials: 'include',
@@ -6,6 +8,9 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    if (res.status === 401 && !path.endsWith('/login')) {
+      window.dispatchEvent(new CustomEvent(UNAUTH_EVENT));
+    }
     throw Object.assign(new Error(body.error ?? res.statusText), { status: res.status, body });
   }
   return (await res.json()) as T;
@@ -70,4 +75,12 @@ export const api = {
     }>,
   ) => call<{ ok: true }>('/admin/api/settings', { method: 'PUT', body: JSON.stringify(s) }),
   audit: (limit = 100) => call<any[]>(`/admin/api/audit?limit=${limit}`),
+  changePassword: (current_password: string, new_password: string) =>
+    call<{ ok: true }>('/admin/api/me/password', {
+      method: 'PUT', body: JSON.stringify({ current_password, new_password }),
+    }),
+  changeUsername: (current_password: string, new_username: string) =>
+    call<{ ok: true }>('/admin/api/me/username', {
+      method: 'PUT', body: JSON.stringify({ current_password, new_username }),
+    }),
 };

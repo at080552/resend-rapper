@@ -11,7 +11,10 @@ import { bodyLimit } from '../middleware/bodyLimit.js';
 import {
   authenticate,
   createSession,
+  destroyAllSessionsForUser,
   destroySession,
+  setPassword,
+  setUsername,
 } from '../services/auth.js';
 import {
   isLocked,
@@ -125,6 +128,57 @@ protectedRoutes.use('*', adminAuth);
 protectedRoutes.get('/me', (c) => {
   const u = c.get('adminUser');
   return c.json({ id: u.id, username: u.username });
+});
+
+const changePasswordSchema = z.object({
+  current_password: z.string().min(1).max(256),
+  new_password: z.string().min(8).max(256),
+});
+
+protectedRoutes.put('/me/password', async (c) => {
+  const u = c.get('adminUser');
+  const body = await c.req.json().catch(() => null);
+  const parsed = changePasswordSchema.safeParse(body);
+  if (!parsed.success) return c.json({ error: 'invalid_payload', details: parsed.error.flatten() }, 400);
+  const ok = await authenticate(u.username, parsed.data.current_password);
+  if (!ok) {
+    writeAuditFromContext(c, {
+      action: 'admin.password.change_failed',
+      actorUserId: u.id,
+      metadata: { reason: 'wrong_current_password' },
+    });
+    return c.json({ error: 'invalid_credentials' }, 401);
+  }
+  await setPassword(u.id, parsed.data.new_password);
+  await destroyAllSessionsForUser(u.id);
+  deleteCookie(c, 'rr_session', { path: '/' });
+  writeAuditFromContext(c, { action: 'admin.password.changed', actorUserId: u.id });
+  return c.json({ ok: true });
+});
+
+const changeUsernameSchema = z.object({
+  current_password: z.string().min(1).max(256),
+  new_username: z.string().min(1).max(64),
+});
+
+protectedRoutes.put('/me/username', async (c) => {
+  const u = c.get('adminUser');
+  const body = await c.req.json().catch(() => null);
+  const parsed = changeUsernameSchema.safeParse(body);
+  if (!parsed.success) return c.json({ error: 'invalid_payload', details: parsed.error.flatten() }, 400);
+  const ok = await authenticate(u.username, parsed.data.current_password);
+  if (!ok) return c.json({ error: 'invalid_credentials' }, 401);
+  try {
+    await setUsername(u.id, parsed.data.new_username);
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'rename_failed' }, 400);
+  }
+  writeAuditFromContext(c, {
+    action: 'admin.username.changed',
+    actorUserId: u.id,
+    metadata: { old: u.username, new: parsed.data.new_username },
+  });
+  return c.json({ ok: true });
 });
 
 protectedRoutes.get('/metrics', async (c) => {

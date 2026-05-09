@@ -38,6 +38,23 @@ export async function authenticate(username: string, password: string) {
   return ok ? user : null;
 }
 
+export async function setPassword(userId: number, newPassword: string): Promise<void> {
+  if (newPassword.length < 8) throw new Error('Password must be at least 8 characters');
+  const passwordHash = await hash(newPassword);
+  db.update(adminUsers).set({ passwordHash }).where(eq(adminUsers.id, userId)).run();
+}
+
+export async function setUsername(userId: number, newUsername: string): Promise<void> {
+  if (!newUsername.trim()) throw new Error('Username is required');
+  const conflict = await findAdminByUsername(newUsername);
+  if (conflict && conflict.id !== userId) throw new Error('Username already taken');
+  db.update(adminUsers).set({ username: newUsername }).where(eq(adminUsers.id, userId)).run();
+}
+
+export async function destroyAllSessionsForUser(userId: number): Promise<void> {
+  db.delete(sessions).where(eq(sessions.userId, userId)).run();
+}
+
 export async function createSession(userId: number) {
   const id = nanoid(32);
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
-import { api } from './api';
+import { api, UNAUTH_EVENT } from './api';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Logs from './pages/Logs';
@@ -8,6 +8,7 @@ import ApiKeys from './pages/ApiKeys';
 import Settings from './pages/Settings';
 import TestSend from './pages/TestSend';
 import Audit from './pages/Audit';
+import Account from './pages/Account';
 
 export default function App() {
   const [me, setMe] = useState<{ id: number; username: string } | null | undefined>(undefined);
@@ -16,6 +17,15 @@ export default function App() {
   useEffect(() => {
     api.me().then(setMe).catch(() => setMe(null));
   }, []);
+
+  useEffect(() => {
+    const onUnauth = () => {
+      setMe(null);
+      navigate('/login', { replace: true });
+    };
+    window.addEventListener(UNAUTH_EVENT, onUnauth);
+    return () => window.removeEventListener(UNAUTH_EVENT, onUnauth);
+  }, [navigate]);
 
   if (me === undefined) {
     return <div style={{ padding: 40, color: '#6b7280' }}>Loading…</div>;
@@ -49,6 +59,7 @@ export default function App() {
           <NavLink to="/api-keys">API Keys</NavLink>
           <NavLink to="/test-send">Test Send</NavLink>
           <NavLink to="/audit">Audit</NavLink>
+          <NavLink to="/account">Account</NavLink>
           <NavLink to="/settings">Settings</NavLink>
         </nav>
         <div style={{ marginTop: 'auto', paddingTop: 24, borderTop: '1px solid var(--border)', color: '#6b7280', fontSize: 13 }}>
@@ -63,6 +74,7 @@ export default function App() {
           <Route path="/api-keys" element={<ApiKeys />} />
           <Route path="/test-send" element={<TestSend />} />
           <Route path="/audit" element={<Audit />} />
+          <Route path="/account" element={<Account username={me.username} />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/login" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
