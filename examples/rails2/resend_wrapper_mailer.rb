@@ -36,18 +36,25 @@ module ResendWrapper
 
   module Json
     def self.encode(obj)
-      if defined?(ActiveSupport::JSON)
+      # Prefer the json gem when present (more deterministic, handles symbol
+      # keys and nested objects predictably). Fall back to ActiveSupport,
+      # which is always available in Rails 2.
+      if defined?(::JSON) && ::JSON.respond_to?(:generate)
+        ::JSON.generate(obj)
+      elsif defined?(ActiveSupport::JSON)
         ActiveSupport::JSON.encode(obj)
       else
-        JSON.generate(obj)
+        raise 'No JSON encoder available'
       end
     end
 
     def self.decode(str)
-      if defined?(ActiveSupport::JSON)
+      if defined?(::JSON) && ::JSON.respond_to?(:parse)
+        ::JSON.parse(str)
+      elsif defined?(ActiveSupport::JSON)
         ActiveSupport::JSON.decode(str)
       else
-        JSON.parse(str)
+        raise 'No JSON decoder available'
       end
     end
   end
@@ -59,16 +66,29 @@ module ResendWrapper
       @host_override = settings[:host_override] # for stunnel-bridge use
       @open_timeout  = settings[:open_timeout]  || 10
       @read_timeout  = settings[:read_timeout]  || 30
+      @logger        = settings[:logger]        # any object responding to .info / .debug
+      @debug_path    = settings[:debug_path]    # write each request to this file
     end
 
     def deliver!(mail)
       payload = build_payload(mail)
+      body    = ResendWrapper::Json.encode(payload)
+
+      if body.nil? || body.empty? || body == 'null'
+        raise DeliveryError,
+          "Encoded payload is empty/null. JSON encoder returned #{body.inspect}; " \
+          "raw payload inspect: #{payload.inspect[0, 800]}"
+      end
+
+      log_debug(body, payload)
+
       uri = URI.parse(@endpoint)
       req = Net::HTTP::Post.new(uri.request_uri)
-      req["Content-Type"] = "application/json"
-      req["X-API-Key"]    = @api_key
-      req["Host"]         = @host_override if @host_override
-      req.body = ResendWrapper::Json.encode(payload)
+      req["Content-Type"]   = "application/json"
+      req["Content-Length"] = body.bytesize.to_s
+      req["X-API-Key"]      = @api_key
+      req["Host"]           = @host_override if @host_override
+      req.body = body
 
       http = Net::HTTP.new(uri.host, uri.port)
       http.open_timeout = @open_timeout
@@ -76,12 +96,36 @@ module ResendWrapper
       res = http.request(req)
 
       unless res.is_a?(Net::HTTPSuccess)
-        raise DeliveryError, "ResendWrapper returned #{res.code}: #{res.body}"
+        snippet = body.length > 500 ? body[0, 500] + '...' : body
+        raise DeliveryError,
+          "ResendWrapper returned #{res.code}: #{res.body}\nSent #{body.bytesize} bytes: #{snippet}"
       end
       ResendWrapper::Json.decode(res.body)
     end
 
     private
+
+    def log_debug(body, payload)
+      return unless @logger || @debug_path
+      msg = "[resend_wrapper] -> #{@endpoint} (#{body.bytesize}B): #{body[0, 1000]}"
+      if @logger
+        if @logger.respond_to?(:info)
+          @logger.info(msg)
+        elsif @logger.respond_to?(:write)
+          @logger.write(msg + "\n")
+        end
+      end
+      if @debug_path
+        begin
+          File.open(@debug_path, 'a') do |f|
+            f.puts "----- #{Time.now.iso8601} -----"
+            f.puts "payload.inspect: #{payload.inspect[0, 2000]}"
+            f.puts "encoded body:    #{body[0, 2000]}"
+          end
+        rescue StandardError
+        end
+      end
+    end
 
     def build_payload(mail)
       payload = {
