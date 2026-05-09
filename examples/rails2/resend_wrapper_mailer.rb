@@ -17,11 +17,40 @@
 
 require 'net/http'
 require 'uri'
-require 'json'
 require 'base64'
+
+# Use ActiveSupport's JSON, which is present in any Rails 2 app and works
+# on Ruby 1.8 where 'json' is not in stdlib. Falls back to the json gem
+# if ActiveSupport happens to be unavailable.
+unless defined?(ActiveSupport::JSON)
+  begin
+    require 'rubygems'
+    require 'json'
+  rescue LoadError
+    raise 'Resend Rapper Rails 2 adapter requires ActiveSupport::JSON or the json gem'
+  end
+end
 
 module ResendWrapper
   class DeliveryError < StandardError; end
+
+  module Json
+    def self.encode(obj)
+      if defined?(ActiveSupport::JSON)
+        ActiveSupport::JSON.encode(obj)
+      else
+        JSON.generate(obj)
+      end
+    end
+
+    def self.decode(str)
+      if defined?(ActiveSupport::JSON)
+        ActiveSupport::JSON.decode(str)
+      else
+        JSON.parse(str)
+      end
+    end
+  end
 
   class Mailer
     def initialize(settings)
@@ -35,7 +64,7 @@ module ResendWrapper
       req = Net::HTTP::Post.new(uri.request_uri)
       req["Content-Type"] = "application/json"
       req["X-API-Key"] = @api_key
-      req.body = JSON.generate(payload)
+      req.body = ResendWrapper::Json.encode(payload)
 
       http = Net::HTTP.new(uri.host, uri.port)
       http.read_timeout = 30
@@ -44,7 +73,7 @@ module ResendWrapper
       unless res.is_a?(Net::HTTPSuccess)
         raise DeliveryError, "ResendWrapper returned #{res.code}: #{res.body}"
       end
-      JSON.parse(res.body)
+      ResendWrapper::Json.decode(res.body)
     end
 
     private
