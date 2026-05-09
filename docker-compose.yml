@@ -7,10 +7,14 @@ services:
     environment:
       PORT: 3000
       HOST: 0.0.0.0
+      NODE_ENV: production
       DATABASE_PATH: /data/resend_rapper.sqlite
-      MASTER_KEY: ${MASTER_KEY:-dev-master-key-change-me-0123456789abcdef0123456789abcdef}
-      SESSION_SECRET: ${SESSION_SECRET:-dev-session-secret-change-me-0123456789abcdef0123456789abcdef}
+      # MASTER_KEY and SESSION_SECRET MUST be set in .env
+      # The container refuses to start without them.
+      MASTER_KEY: ${MASTER_KEY:?MASTER_KEY is required (see .env.example)}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required (see .env.example)}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
     volumes:
       - resend-rapper-data:/data
     restart: unless-stopped

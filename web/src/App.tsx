@@ -7,6 +7,7 @@ import Logs from './pages/Logs';
 import ApiKeys from './pages/ApiKeys';
 import Settings from './pages/Settings';
 import TestSend from './pages/TestSend';
+import Audit from './pages/Audit';
 
 export default function App() {
   const [me, setMe] = useState<{ id: number; username: string } | null | undefined>(undefined);
@@ -47,6 +48,7 @@ export default function App() {
           <NavLink to="/logs">Logs</NavLink>
           <NavLink to="/api-keys">API Keys</NavLink>
           <NavLink to="/test-send">Test Send</NavLink>
+          <NavLink to="/audit">Audit</NavLink>
           <NavLink to="/settings">Settings</NavLink>
         </nav>
         <div style={{ marginTop: 'auto', paddingTop: 24, borderTop: '1px solid var(--border)', color: '#6b7280', fontSize: 13 }}>
@@ -60,6 +62,7 @@ export default function App() {
           <Route path="/logs" element={<Logs />} />
           <Route path="/api-keys" element={<ApiKeys />} />
           <Route path="/test-send" element={<TestSend />} />
+          <Route path="/audit" element={<Audit />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/login" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />

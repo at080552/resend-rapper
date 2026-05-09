@@ -37,15 +37,35 @@ export const api = {
   testSend: (payload: any) =>
     call<any>('/admin/api/test-send', { method: 'POST', body: JSON.stringify(payload) }),
   apiKeys: () => call<any[]>('/admin/api/api-keys'),
-  createApiKey: (name: string) =>
+  createApiKey: (name: string, allowed_domains: string[]) =>
     call<{ id: number; name: string; prefix: string; plainKey: string }>('/admin/api/api-keys', {
-      method: 'POST', body: JSON.stringify({ name }),
+      method: 'POST', body: JSON.stringify({ name, allowed_domains }),
+    }),
+  updateApiKeyDomains: (id: number, allowed_domains: string[]) =>
+    call<{ ok: true }>(`/admin/api/api-keys/${id}`, {
+      method: 'PUT', body: JSON.stringify({ allowed_domains }),
     }),
   revokeApiKey: (id: number) => call<{ ok: true }>(`/admin/api/api-keys/${id}/revoke`, { method: 'POST' }),
   settings: () =>
-    call<{ resend_api_key_set: boolean; default_from: string; retry_count: string; attachment_max_bytes: string }>(
-      '/admin/api/settings',
-    ),
-  updateSettings: (s: Partial<{ resend_api_key: string; default_from: string; retry_count: string; attachment_max_bytes: string }>) =>
-    call<{ ok: true }>('/admin/api/settings', { method: 'PUT', body: JSON.stringify(s) }),
+    call<{
+      resend_api_key_set: boolean;
+      default_from: string;
+      retry_count: string;
+      attachment_max_bytes: string;
+      allowed_from_domains: string;
+      log_retention_days: string;
+      rate_limit_per_key_per_min: string;
+    }>('/admin/api/settings'),
+  updateSettings: (
+    s: Partial<{
+      resend_api_key: string;
+      default_from: string;
+      retry_count: string;
+      attachment_max_bytes: string;
+      allowed_from_domains: string;
+      log_retention_days: string;
+      rate_limit_per_key_per_min: string;
+    }>,
+  ) => call<{ ok: true }>('/admin/api/settings', { method: 'PUT', body: JSON.stringify(s) }),
+  audit: (limit = 100) => call<any[]>(`/admin/api/audit?limit=${limit}`),
 };

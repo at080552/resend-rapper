@@ -1,4 +1,4 @@
-import { and, desc, eq, like, sql } from 'drizzle-orm';
+import { and, desc, eq, lt, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { attachments, emailLogs } from '../db/schema.js';
 import type { SendEmailInput } from '../schemas/sendEmail.js';
@@ -74,9 +74,10 @@ export async function listLogs(opts: ListLogsOptions = {}) {
   const conditions = [];
   if (opts.status) conditions.push(eq(emailLogs.status, opts.status));
   if (opts.search) {
-    const q = `%${opts.search}%`;
+    const escaped = opts.search.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+    const q = `%${escaped}%`;
     conditions.push(
-      sql`(${like(emailLogs.subject, q)} OR ${like(emailLogs.toJson, q)} OR ${like(emailLogs.fromAddr, q)})`,
+      sql`(${emailLogs.subject} LIKE ${q} ESCAPE '\\' OR ${emailLogs.toJson} LIKE ${q} ESCAPE '\\' OR ${emailLogs.fromAddr} LIKE ${q} ESCAPE '\\')`,
     );
   }
   const where = conditions.length ? and(...conditions) : undefined;
@@ -94,6 +95,11 @@ export async function listLogs(opts: ListLogsOptions = {}) {
     .where(where)
     .get();
   return { rows, total: totalRow?.count ?? 0, limit, offset };
+}
+
+export async function purgeOlderThan(cutoff: Date): Promise<number> {
+  const stmt = db.delete(emailLogs).where(lt(emailLogs.createdAt, cutoff)).run();
+  return Number(stmt.changes ?? 0);
 }
 
 export async function getLog(id: number) {

@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
   name TEXT NOT NULL,
   key_hash TEXT NOT NULL UNIQUE,
   prefix TEXT NOT NULL,
+  allowed_domains TEXT,
   created_at INTEGER NOT NULL,
   last_used_at INTEGER,
   revoked_at INTEGER
@@ -61,8 +62,33 @@ CREATE TABLE IF NOT EXISTS sessions (
   user_id INTEGER NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
   expires_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  actor_user_id INTEGER,
+  actor_api_key_id INTEGER,
+  action TEXT NOT NULL,
+  target_type TEXT,
+  target_id TEXT,
+  metadata TEXT,
+  ip TEXT,
+  user_agent TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS audit_logs_created_idx ON audit_logs(created_at);
+CREATE INDEX IF NOT EXISTS audit_logs_action_idx ON audit_logs(action);
 `;
+
+function tryAlter(sql: string) {
+  try {
+    sqlite.exec(sql);
+  } catch (e) {
+    if (!(e instanceof Error) || !/duplicate column/i.test(e.message)) throw e;
+  }
+}
 
 export function initSchema(): void {
   sqlite.exec(DDL);
+  // upgrade-in-place: add columns added in later versions
+  tryAlter('ALTER TABLE api_keys ADD COLUMN allowed_domains TEXT;');
 }

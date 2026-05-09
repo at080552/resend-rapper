@@ -5,6 +5,7 @@ export const apiKeys = sqliteTable('api_keys', {
   name: text('name').notNull(),
   keyHash: text('key_hash').notNull().unique(),
   prefix: text('prefix').notNull(),
+  allowedDomains: text('allowed_domains'),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
   revokedAt: integer('revoked_at', { mode: 'timestamp_ms' }),
@@ -70,6 +71,27 @@ export const sessions = sqliteTable('sessions', {
   expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
 });
 
+export const auditLogs = sqliteTable(
+  'audit_logs',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    actorUserId: integer('actor_user_id'),
+    actorApiKeyId: integer('actor_api_key_id'),
+    action: text('action').notNull(),
+    targetType: text('target_type'),
+    targetId: text('target_id'),
+    metadata: text('metadata'),
+    ip: text('ip'),
+    userAgent: text('user_agent'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => ({
+    auditCreatedIdx: index('audit_logs_created_idx').on(t.createdAt),
+    auditActionIdx: index('audit_logs_action_idx').on(t.action),
+  }),
+);
+
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type EmailLog = typeof emailLogs.$inferSelect;
 export type AdminUser = typeof adminUsers.$inferSelect;
+export type AuditLog = typeof auditLogs.$inferSelect;

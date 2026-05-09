@@ -1,12 +1,20 @@
 import { hash, verify } from '@node-rs/argon2';
-import { eq, lt } from 'drizzle-orm';
+import { eq, lt, sql } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { db } from '../db/client.js';
 import { adminUsers, sessions } from '../db/schema.js';
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 12;
 
+export async function findAdminByUsername(username: string) {
+  return db.select().from(adminUsers).where(eq(adminUsers.username, username)).get() ?? null;
+}
+
 export async function createAdmin(username: string, password: string) {
+  const existing = await findAdminByUsername(username);
+  if (existing) {
+    throw new Error(`Admin user '${username}' already exists`);
+  }
   const passwordHash = await hash(password);
   return db
     .insert(adminUsers)
@@ -16,7 +24,11 @@ export async function createAdmin(username: string, password: string) {
 }
 
 export async function adminCount(): Promise<number> {
-  return db.select().from(adminUsers).all().length;
+  const row = db
+    .select({ n: sql<number>`count(*)` })
+    .from(adminUsers)
+    .get();
+  return row?.n ?? 0;
 }
 
 export async function authenticate(username: string, password: string) {

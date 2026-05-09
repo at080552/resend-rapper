@@ -14,17 +14,34 @@ export interface IssuedKey {
   plainKey: string;
 }
 
-export async function issueApiKey(name: string): Promise<IssuedKey> {
+function normalizeDomains(domains: string[] | null | undefined): string {
+  const cleaned = (domains ?? [])
+    .map((d) => d.trim().toLowerCase())
+    .filter((d) => /^[a-z0-9.-]+\.[a-z]{2,}$/.test(d));
+  return JSON.stringify([...new Set(cleaned)]);
+}
+
+export async function issueApiKey(name: string, allowedDomains: string[] = []): Promise<IssuedKey> {
   const raw = generateToken();
   const plainKey = `rrk_${raw}`;
   const prefix = plainKey.slice(0, 12);
   const keyHash = sha256(plainKey);
   const inserted = db
     .insert(apiKeys)
-    .values({ name, keyHash, prefix, createdAt: new Date() })
+    .values({
+      name,
+      keyHash,
+      prefix,
+      allowedDomains: normalizeDomains(allowedDomains),
+      createdAt: new Date(),
+    })
     .returning()
     .get();
   return { id: inserted.id, name: inserted.name, prefix, plainKey };
+}
+
+export async function setApiKeyAllowedDomains(id: number, domains: string[]): Promise<void> {
+  db.update(apiKeys).set({ allowedDomains: normalizeDomains(domains) }).where(eq(apiKeys.id, id)).run();
 }
 
 export async function verifyApiKey(plainKey: string) {

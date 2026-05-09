@@ -9,12 +9,20 @@ export const SETTING_KEYS = {
   DEFAULT_FROM: 'default_from',
   RETRY_COUNT: 'retry_count',
   ATTACHMENT_MAX_BYTES: 'attachment_max_bytes',
+  ALLOWED_FROM_DOMAINS: 'allowed_from_domains',
+  LOG_RETENTION_DAYS: 'log_retention_days',
+  RATE_LIMIT_PER_KEY_PER_MIN: 'rate_limit_per_key_per_min',
 } as const;
 
 export async function getSetting(key: string): Promise<string | null> {
   const row = db.select().from(settings).where(eq(settings.key, key)).get();
   if (!row) return null;
-  return row.encrypted ? decrypt(row.value) : row.value;
+  if (!row.encrypted) return row.value;
+  try {
+    return decrypt(row.value);
+  } catch {
+    return null;
+  }
 }
 
 export async function setSetting(key: string, value: string, encrypted = false): Promise<void> {
@@ -42,4 +50,27 @@ export async function getRetryCount(): Promise<number> {
 export async function getAttachmentMaxBytes(): Promise<number> {
   const v = await getSetting(SETTING_KEYS.ATTACHMENT_MAX_BYTES);
   return v ? Number(v) : 5 * 1024 * 1024;
+}
+
+export async function getAllowedFromDomains(): Promise<string[]> {
+  const v = await getSetting(SETTING_KEYS.ALLOWED_FROM_DOMAINS);
+  if (!v) return [];
+  return v
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export async function getLogRetentionDays(): Promise<number> {
+  const v = await getSetting(SETTING_KEYS.LOG_RETENTION_DAYS);
+  if (!v) return 0;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+export async function getRateLimitPerKeyPerMin(): Promise<number> {
+  const v = await getSetting(SETTING_KEYS.RATE_LIMIT_PER_KEY_PER_MIN);
+  if (!v) return 60;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : 60;
 }

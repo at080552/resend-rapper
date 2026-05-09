@@ -17,10 +17,11 @@ and a friendly admin web UI.
 ## Features
 
 - **HTTP `POST /api/v1/send`** — JSON in, Resend message id out
-- **API-key auth** — issue & revoke keys per client app
-- **Admin web UI** — dashboard, log search with HTML preview, resend button, test send
+- **API-key auth** — issue & revoke keys per client app, scope each key to specific from-domains
+- **Admin web UI** — dashboard, log search with HTML preview, resend button, test send, audit log
 - **Persistent SQLite** — every send is logged with status, attempts, and error
 - **Encrypted secrets** — Resend API key is AES-256-GCM-encrypted at rest
+- **Anti-abuse** — strict secret validation, per-key send rate limit, login lockout, CSRF/Origin checks, secure headers, body-size cap, from-domain allowlist, log retention sweeper, audit log
 - **Single container** — runs on Docker, docker-compose, Railway, Render, Fly.io
 - **Rails 2 example** — drop-in `delivery_method = :resend_wrapper` adapter
 
@@ -36,10 +37,12 @@ Rails 2 / legacy app ──[plain HTTP, internal LAN]──▶ Resend Rapper ─
 ## Quick start (Docker)
 
 ```bash
-git clone https://github.com/<you>/resend-rapper.git
+git clone https://github.com/at080552/resend-rapper.git
 cd resend-rapper
 cp .env.example .env
-# edit .env: set MASTER_KEY and SESSION_SECRET to random 64-hex strings
+# generate strong secrets — the app refuses to start without them
+echo "MASTER_KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")" >> .env
+echo "SESSION_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")" >> .env
 
 docker compose up --build -d
 docker compose exec resend-rapper node dist/cli/createAdmin.js \
@@ -141,14 +144,30 @@ cd web && npm run dev   # admin UI on :5173 (proxies to :3000)
 
 ## Security
 
-- The wrapper is designed to listen on a **trusted internal network**. The plain
-  HTTP path is for the legacy client only. Put a reverse proxy in front of it if
-  you need TLS termination for the admin UI.
-- API keys are stored as SHA-256 hashes; the plain value is shown **once** at issue.
-- Resend API key and other secrets in `settings` are encrypted with AES-256-GCM.
-  The encryption key is `MASTER_KEY` from the environment — back it up.
-- Admin passwords are hashed with Argon2id.
-- Configure firewall rules so only your legacy clients can reach `/api/v1/*`.
+- **Trusted network only.** The client API path uses plain HTTP for legacy clients.
+  Keep `/api/v1/*` reachable only from your internal network or VPN.
+- **Strict secrets.** `MASTER_KEY` and `SESSION_SECRET` must be ≥ 32 chars and not
+  placeholder-ish — the app refuses to start otherwise.
+- **API keys.** Stored as SHA-256 hashes; the plain value is shown **once** at issue.
+  Each key can be scoped to specific from-domains; otherwise the global allowlist
+  in Settings applies.
+- **At-rest encryption.** Resend API key is encrypted with AES-256-GCM. Back up
+  `MASTER_KEY` — losing it makes the encrypted value unrecoverable.
+- **Admin auth.** Argon2id password hashing, `SameSite=Strict` session cookie,
+  `secure` flag enabled in production / behind a trusted proxy. CSRF guarded by
+  Origin/Referer validation.
+- **Anti-abuse.**
+  - Login: 10/min per IP rate limit + 8 failures in 15 min → 15 min lockout
+    (per username and per IP).
+  - Send API: configurable per-API-key rate limit (default 60/min).
+  - Body size: hard cap (default 10 MB).
+  - From-domain allowlist enforced per request.
+- **Retention.** `Settings → log retention days` purges old `email_logs`
+  (including attachments) on an hourly sweeper.
+- **Audit log.** All admin mutations and auth attempts are logged with IP and
+  user-agent; visible at `/admin/audit`.
+- **Headers.** CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: same-origin` applied globally.
 
 ## Documentation
 

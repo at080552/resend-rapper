@@ -1,22 +1,42 @@
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
-import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { secureHeaders } from 'hono/secure-headers';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { config } from './config.js';
 import { initSchema } from './db/init.js';
 import { adminApi } from './routes/adminApi.js';
 import { clientApi } from './routes/clientApi.js';
 import { adminCount } from './services/auth.js';
+import { purgeOlderThan } from './services/emailLog.js';
+import { getLogRetentionDays } from './services/settings.js';
 
 initSchema();
 
 const app = new Hono();
 app.use('*', logger());
-app.use('/admin/api/*', cors({ origin: '*', credentials: true }));
+app.use(
+  '*',
+  secureHeaders({
+    contentSecurityPolicy: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'"],
+      frameSrc: ["'self'"],
+      frameAncestors: ["'none'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+    },
+    referrerPolicy: 'same-origin',
+    xFrameOptions: 'DENY',
+    xContentTypeOptions: 'nosniff',
+  }),
+);
 
 app.get('/', (c) => c.redirect('/admin/'));
 app.get('/healthz', (c) => c.json({ ok: true }));
@@ -47,6 +67,25 @@ if (existsSync(webDist)) {
     ),
   );
 }
+
+async function runRetentionSweep(): Promise<void> {
+  try {
+    const days = await getLogRetentionDays();
+    if (days <= 0) return;
+    const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000);
+    const purged = await purgeOlderThan(cutoff);
+    if (purged > 0) {
+      console.log(`[retention] purged ${purged} email_logs older than ${days}d`);
+    }
+  } catch (err) {
+    console.error('[retention] sweep error', err);
+  }
+}
+
+void runRetentionSweep();
+setInterval(() => {
+  void runRetentionSweep();
+}, 60 * 60 * 1000).unref();
 
 console.log(`resend-rapper listening on http://${config.host}:${config.port}`);
 serve({ fetch: app.fetch, hostname: config.host, port: config.port });
