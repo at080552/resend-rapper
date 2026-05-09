@@ -7,6 +7,7 @@ import { config } from '../config.js';
 export const SETTING_KEYS = {
   RESEND_API_KEY: 'resend_api_key',
   DEFAULT_FROM: 'default_from',
+  DEFAULT_REPLY_TO: 'default_reply_to',
   RETRY_COUNT: 'retry_count',
   ATTACHMENT_MAX_BYTES: 'attachment_max_bytes',
   ALLOWED_FROM_DOMAINS: 'allowed_from_domains',
@@ -66,6 +67,15 @@ export async function getLogRetentionDays(): Promise<number> {
   if (!v) return 0;
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+export async function getDefaultReplyTo(): Promise<string[]> {
+  const v = await getSetting(SETTING_KEYS.DEFAULT_REPLY_TO);
+  if (!v) return [];
+  return v
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 export async function getRateLimitPerKeyPerMin(): Promise<number> {

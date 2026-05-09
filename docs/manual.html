@@ -456,6 +456,7 @@ ActionMailer::Base.resend_wrapper_settings = {
       <tr><th>症状</th><th>原因の候補</th><th>対処</th></tr>
       <tr><td><code class="inline">401 Invalid API key</code></td><td>キーが失効 / コピーミス</td><td>API Keys 画面で再発行</td></tr>
       <tr><td><code class="inline">from_required</code></td><td>From も default_from も未設定</td><td>Settings で default_from を設定</td></tr>
+      <tr><td><code class="inline">domain_not_allowed</code></td><td>From のドメインが per-key / global allowlist 外</td><td>API Keys で許可ドメイン追加、または Settings の global allowlist を調整。<strong>reply_to は allowlist の対象外</strong>(別ドメインを Reply-To に指定可)</td></tr>
       <tr><td><code class="inline">attachment_too_large</code></td><td>添付サイズ上限超過</td><td>Settings で <code class="inline">attachment_max_bytes</code> を緩める</td></tr>
       <tr><td>送信が常に failed</td><td>Resend API キー未設定</td><td>Settings で <code class="inline">resend_api_key</code> を貼り直す</td></tr>
       <tr><td>SQLite が消える</td><td>Volume 未マウント</td><td><code class="inline">/data</code> をボリュームに、Railway は Volume プラグイン</td></tr>

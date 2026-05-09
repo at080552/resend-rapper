@@ -31,6 +31,7 @@ import {
   getResendApiKey,
   getSetting,
   setSetting,
+  getDefaultReplyTo,
 } from '../services/settings.js';
 import { sendViaResend } from '../services/resend.js';
 import { sendEmailSchema } from '../schemas/sendEmail.js';
@@ -206,8 +207,15 @@ protectedRoutes.post('/test-send', async (c) => {
   if (!fv.ok) {
     return c.json({ error: fv.reason ?? 'from_rejected', domain: fv.domain, allowed_domains: fv.allowed }, 403);
   }
-  const log = await createPendingLog({ apiKeyId: null, input: parsed.data, fromAddr });
-  const result = await sendViaResend({ ...parsed.data, from: fromAddr });
+  let replyTo = parsed.data.reply_to;
+  if (replyTo === undefined) {
+    const def = await getDefaultReplyTo();
+    if (def.length > 0) replyTo = def;
+  }
+  if (replyTo && replyTo.length === 0) replyTo = undefined;
+  const finalInput = { ...parsed.data, from: fromAddr, reply_to: replyTo };
+  const log = await createPendingLog({ apiKeyId: null, input: finalInput, fromAddr });
+  const result = await sendViaResend(finalInput);
   writeAuditFromContext(c, {
     action: 'admin.email.test_send',
     actorUserId: c.get('adminUser').id,
@@ -299,6 +307,7 @@ protectedRoutes.get('/settings', async (c) => {
   return c.json({
     resend_api_key_set: Boolean(stored),
     default_from: (await getSetting(SETTING_KEYS.DEFAULT_FROM)) ?? '',
+    default_reply_to: (await getSetting(SETTING_KEYS.DEFAULT_REPLY_TO)) ?? '',
     retry_count: (await getSetting(SETTING_KEYS.RETRY_COUNT)) ?? '3',
     attachment_max_bytes:
       (await getSetting(SETTING_KEYS.ATTACHMENT_MAX_BYTES)) ?? String(5 * 1024 * 1024),
@@ -312,6 +321,7 @@ protectedRoutes.get('/settings', async (c) => {
 const settingsSchema = z.object({
   resend_api_key: z.string().optional(),
   default_from: z.string().max(320).optional(),
+  default_reply_to: z.string().max(2000).optional(),
   retry_count: z.union([z.string(), z.number()]).optional(),
   attachment_max_bytes: z.union([z.string(), z.number()]).optional(),
   allowed_from_domains: z.string().max(2000).optional(),
@@ -330,6 +340,10 @@ protectedRoutes.put('/settings', async (c) => {
     changed.push('resend_api_key');
   }
   if (d.default_from !== undefined) { await setSetting(SETTING_KEYS.DEFAULT_FROM, d.default_from); changed.push('default_from'); }
+  if (d.default_reply_to !== undefined) {
+    await setSetting(SETTING_KEYS.DEFAULT_REPLY_TO, d.default_reply_to);
+    changed.push('default_reply_to');
+  }
   if (d.retry_count !== undefined) { await setSetting(SETTING_KEYS.RETRY_COUNT, String(d.retry_count)); changed.push('retry_count'); }
   if (d.attachment_max_bytes !== undefined) {
     await setSetting(SETTING_KEYS.ATTACHMENT_MAX_BYTES, String(d.attachment_max_bytes));

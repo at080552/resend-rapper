@@ -50,6 +50,7 @@ export const api = {
     call<{
       resend_api_key_set: boolean;
       default_from: string;
+      default_reply_to: string;
       retry_count: string;
       attachment_max_bytes: string;
       allowed_from_domains: string;
@@ -60,6 +61,7 @@ export const api = {
     s: Partial<{
       resend_api_key: string;
       default_from: string;
+      default_reply_to: string;
       retry_count: string;
       attachment_max_bytes: string;
       allowed_from_domains: string;

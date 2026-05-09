@@ -5,6 +5,7 @@ export default function Settings() {
   const [s, setS] = useState<Awaited<ReturnType<typeof api.settings>> | null>(null);
   const [resendKey, setResendKey] = useState('');
   const [defaultFrom, setDefaultFrom] = useState('');
+  const [defaultReplyTo, setDefaultReplyTo] = useState('');
   const [retry, setRetry] = useState('3');
   const [maxBytes, setMaxBytes] = useState(String(5 * 1024 * 1024));
   const [allowedDomains, setAllowedDomains] = useState('');
@@ -16,6 +17,7 @@ export default function Settings() {
     const v = await api.settings();
     setS(v);
     setDefaultFrom(v.default_from);
+    setDefaultReplyTo(v.default_reply_to ?? '');
     setRetry(v.retry_count);
     setMaxBytes(v.attachment_max_bytes);
     setAllowedDomains(v.allowed_from_domains ?? '');
@@ -30,6 +32,7 @@ export default function Settings() {
       await api.updateSettings({
         resend_api_key: resendKey || undefined,
         default_from: defaultFrom,
+        default_reply_to: defaultReplyTo,
         retry_count: retry,
         attachment_max_bytes: maxBytes,
         allowed_from_domains: allowedDomains,
@@ -70,6 +73,19 @@ export default function Settings() {
         <div className="field">
           <label>Default From address</label>
           <input value={defaultFrom} onChange={(e) => setDefaultFrom(e.target.value)} placeholder="Acme &lt;noreply@acme.com&gt;" />
+        </div>
+        <div className="field">
+          <label>Default Reply-To (comma separated, optional)</label>
+          <input
+            value={defaultReplyTo}
+            onChange={(e) => setDefaultReplyTo(e.target.value)}
+            placeholder="info@acme.com"
+          />
+          <p style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+            Auto-injected when a request omits <code className="inline">reply_to</code>. To send with no
+            reply-to, the client can pass <code className="inline">"reply_to": []</code> explicitly.
+            Reply-To is not validated against the from-domain allowlist.
+          </p>
         </div>
       </div>
 

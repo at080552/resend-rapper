@@ -11,6 +11,7 @@ import {
   SETTING_KEYS,
   getAttachmentMaxBytes,
   getRateLimitPerKeyPerMin,
+  getDefaultReplyTo,
 } from '../services/settings.js';
 import { validateFrom } from '../services/fromValidation.js';
 import { writeAuditFromContext } from '../services/audit.js';
@@ -82,9 +83,17 @@ clientApi.post('/send', async (c) => {
     );
   }
 
-  const log = await createPendingLog({ apiKeyId: apiKey.id, input, fromAddr });
+  let replyTo = input.reply_to;
+  if (replyTo === undefined) {
+    const def = await getDefaultReplyTo();
+    if (def.length > 0) replyTo = def;
+  }
+  if (replyTo && replyTo.length === 0) replyTo = undefined;
 
-  const result = await sendViaResend({ ...input, from: fromAddr }, defaultFrom);
+  const finalInput = { ...input, from: fromAddr, reply_to: replyTo };
+  const log = await createPendingLog({ apiKeyId: apiKey.id, input: finalInput, fromAddr });
+
+  const result = await sendViaResend(finalInput, defaultFrom);
   if (result.ok && result.resendId) {
     await markSent(log.id, result.resendId, result.attempts);
     return c.json({ id: log.id, resend_id: result.resendId, status: 'sent' });
