@@ -195,7 +195,7 @@ module ResendWrapper
       payload = {
         :from    => to_addr(mail.from),
         :to      => Array(mail.to),
-        :subject => mail.subject.to_s
+        :subject => to_utf8(mail.subject)
       }
       payload[:cc]       = Array(mail.cc) if mail.cc && !Array(mail.cc).empty?
       payload[:bcc]      = Array(mail.bcc) if mail.bcc && !Array(mail.bcc).empty?
@@ -204,14 +204,14 @@ module ResendWrapper
       if mail.respond_to?(:parts) && mail.parts.any?
         html = mail.parts.find { |p| p.content_type =~ %r{text/html} }
         text = mail.parts.find { |p| p.content_type =~ %r{text/plain} }
-        payload[:html] = html.body.to_s if html
-        payload[:text] = text.body.to_s if text
+        payload[:html] = to_utf8(html.body) if html
+        payload[:text] = to_utf8(text.body) if text
       else
         body = mail.body.to_s
         if mail.content_type =~ %r{text/html}
-          payload[:html] = body
+          payload[:html] = to_utf8(body)
         else
-          payload[:text] = body
+          payload[:text] = to_utf8(body)
         end
       end
 
@@ -233,6 +233,26 @@ module ResendWrapper
     def to_addr(value)
       v = Array(value).first
       v.is_a?(String) ? v : v.to_s
+    end
+
+    # Normalize any string that may be ISO-2022-JP / Shift_JIS / MIME-encoded
+    # ('=?ISO-2022-JP?B?...?=' or '=?ISO-2022-JP?Q?...?=') down to UTF-8.
+    # Uses Ruby 1.8 stdlib NKF when available; otherwise returns the input
+    # unchanged. Pure ASCII strings are a no-op either way.
+    def to_utf8(s)
+      return '' if s.nil?
+      s = s.to_s
+      return s if s.empty?
+      begin
+        require 'nkf' unless defined?(NKF)
+        # -w : output UTF-8 (no BOM)
+        # -m : decode MIME-encoded headers (=?ISO-2022-JP?B?...?= etc.)
+        # NKF auto-detects input encoding (UTF-8/ISO-2022-JP/SJIS/EUC).
+        # Pure ASCII input is a no-op.
+        NKF.nkf('-w -m', s)
+      rescue LoadError, StandardError
+        s
+      end
     end
   end
 end
