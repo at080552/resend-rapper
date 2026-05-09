@@ -85,7 +85,7 @@ module ResendWrapper
       uri = URI.parse(@endpoint)
       req = Net::HTTP::Post.new(uri.request_uri)
       req["Content-Type"]   = "application/json"
-      req["Content-Length"] = body.bytesize.to_s
+      req["Content-Length"] = body_size(body).to_s
       req["X-API-Key"]      = @api_key
       req["Host"]           = @host_override if @host_override
       req.body = body
@@ -98,16 +98,22 @@ module ResendWrapper
       unless res.is_a?(Net::HTTPSuccess)
         snippet = body.length > 500 ? body[0, 500] + '...' : body
         raise DeliveryError,
-          "ResendWrapper returned #{res.code}: #{res.body}\nSent #{body.bytesize} bytes: #{snippet}"
+          "ResendWrapper returned #{res.code}: #{res.body}\nSent #{body_size(body)} bytes: #{snippet}"
       end
       ResendWrapper::Json.decode(res.body)
     end
 
     private
 
+    # Ruby 1.8 has no String#bytesize. .length is byte-oriented in 1.8 and
+    # we get a real byte count via .bytesize on 1.9+.
+    def body_size(s)
+      s.respond_to?(:bytesize) ? s.bytesize : s.length
+    end
+
     def log_debug(body, payload)
       return unless @logger || @debug_path
-      msg = "[resend_wrapper] -> #{@endpoint} (#{body.bytesize}B): #{body[0, 1000]}"
+      msg = "[resend_wrapper] -> #{@endpoint} (#{body_size(body)}B): #{body[0, 1000]}"
       if @logger
         if @logger.respond_to?(:info)
           @logger.info(msg)
@@ -118,7 +124,8 @@ module ResendWrapper
       if @debug_path
         begin
           File.open(@debug_path, 'a') do |f|
-            f.puts "----- #{Time.now.iso8601} -----"
+            stamp = Time.now.respond_to?(:iso8601) ? Time.now.iso8601 : Time.now.strftime('%Y-%m-%dT%H:%M:%S%z')
+            f.puts "----- #{stamp} -----"
             f.puts "payload.inspect: #{payload.inspect[0, 2000]}"
             f.puts "encoded body:    #{body[0, 2000]}"
           end
