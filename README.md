@@ -152,8 +152,9 @@ cd web && npm run dev   # admin UI on :5173 (proxies to :3000)
 
 ## Documentation
 
-A graphical, single-file manual lives at [`docs/manual.html`](docs/manual.html).
-Open it in any browser, or publish `docs/` via GitHub Pages.
+- 📖 **Online manual** (white-background, graphical): <https://at080552.github.io/resend-rapper/manual.html>
+- Source: [`docs/manual.html`](docs/manual.html) — single file, no external assets, opens in any browser
+- Implementation plan: [`docs/plan.md`](docs/plan.md)
 
 ## License
 
